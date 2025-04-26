@@ -1,0 +1,119 @@
+---
+title: "Practical Machine Learning - Course Project"
+output: html_document
+---
+
+##Abstract
+
+This study examines the Weight Lifting Exercises dataset from Velloso, Bulling, Gellersen, Ugulino, and Fuks [1] and creates a model to predict Unilateral Dumbel Biceps Curl category using motion data. To create this model, the data is explored, cleaned, and divided into training and testing sub-datasets. The package randomForest is then applied to the training sub-dataset. The resulting model is examined for potential for out of sample error, is cross-validated against the sub-testing dataset, and finally applied to the WLE’s testing dataset.
+
+###Data Loading
+
+First, the libraries that will be used during this study are loaded and the working directory are set as appropriate.  The caret libary is used to subset the training data into training and testing subdatasets.  The randomForest package is used to create the model.
+
+```{r}
+library( caret )
+library( randomForest )
+
+setwd("~/R/coursera/Practical Machine Learning - Course Project")
+
+set.seed( 1337 )
+
+```
+
+###Data Exploration
+Next, the csv files provided by the Weight Lifting Exercises dataset [1] are loaded.
+
+```{r}
+rawTesting <- read.csv( 'pml-testing.csv' )
+rawTraining <- read.csv( 'pml-training.csv' )
+
+```
+
+The summary of the testing database shows that many of the fields in the dataset consist mainly of NA values and should be removed before model fitting. Some fields also contain the value ‘#DIV/0!’ which is Microsoft Excel’s error symbol. These will be converted to NA values.
+
+###Data Cleaning
+A function is used to provide consistent cleaning between all of the datasets used. This function removes fields which may cause overfitting in our prediction model, cleans up erroneous data entries caused by Microsoft Excel, and then removes fields whose rows have 95% or more NA values.
+```{r}
+
+cleanData <- function( df ) {
+  # Remove columns which may interfere with algorithm generation
+  toRemove <- c( 'X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2',
+                 'cvtd_timestamp', 'new_window', 'num_window' )
+  df <- df[ , !( names( df ) %in% toRemove ) ]
+  
+  # Change '#DIV/0!' values to NAs
+  df <- as.data.frame( lapply( df,
+                              function( x ) if( is.character( x ) | is.factor( x ) ) 
+                                gsub( "#DIV/0!", NA, x ) else x )
+                       )
+  
+  # Change '' values to NAs
+  df <- as.data.frame( lapply( df,
+                              function( x ) if( is.character( x ) | is.factor( x ) ) 
+                                if( nchar( as.character( x ) ) < 1 ) NA else x else x )
+                       )
+  
+  # Only keep columns if the number of NA values in the column is less than 95%.
+  df <- df[ , colSums( is.na( df )) / nrow( df ) <= 0.95 ]
+  
+  return( df )
+  
+}
+
+rawTraining <- cleanData( rawTraining )
+rawTesting <- cleanData( rawTesting )
+```
+
+
+###Model Fitting
+The cleaned training dataset is then partitioned into a new training and testing dataset. The new training dataset is loaded into the randomForest package with the variable classe as the outcome and all other variables as the predictors. The resulting model has an estimated out of sample error rate of 0.54% and it’s confusion matrix is not very confused.
+
+```{r}
+inTrain <- createDataPartition( y= rawTraining$classe, p=0.7, list=FALSE )
+
+training <- rawTraining[ inTrain, ]
+testing <- rawTraining[ -inTrain, ]
+
+fit <- randomForest( classe ~ ., data= training )
+
+print( fit )
+```
+
+###Prediction
+The model is cross-validated using our testing subset and the out of sample error rate is calculated. The out of sample error rate is calculated to be 0.48%. The data analysts are pleased with this result and apply the model to the provided testing dataset.
+```{r}
+pred <- predict( fit, testing )
+testing$predRight <- pred == testing$classe
+
+result <- table( pred, testing$predRight )
+print( result )
+
+incorrect <- sum( result[ ,1 ] )
+correct <- sum( result[ ,2] )
+
+percentSampleError <- incorrect/correct * 100
+print( percentSampleError )
+```
+
+##Results
+The created model correctly answers 100% of the test questions and doesn’t take too long to generate using an older laptop computer. An important aspect of data analysis involves having a tidy dataset.
+```{r}
+answers <- predict( fit, rawTesting )
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files( answers )
+
+```
+
+
+##References
+
+[1] Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013. URL: http://groupware.les.inf.puc-rio.br/har#wle_paper_section, accessed 2014-09-20.
