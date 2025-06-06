@@ -15,6 +15,7 @@
         // Navigation items
         const navItems = [
                 { href: '/', label: 'Home' },
+                { href: '/floppy-archives', label: '💾 Floppy Archives' },
                 { href: '/legacy-ml-project/', label: 'ML Project' }
         ];
 </script>
